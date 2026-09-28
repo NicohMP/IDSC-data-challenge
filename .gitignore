@@ -12,10 +12,6 @@ wheels/
 # Challenge data: downloaded/provided locally, never committed.
 dataset/test/
 
-# Small project files that document or inspect the data are shared.
-!dataset/README.md
-!dataset/annotations.json
-!dataset/view_annotations.py
 
 # Local experiment outputs
 outputs/

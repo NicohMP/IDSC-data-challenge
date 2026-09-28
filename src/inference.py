@@ -43,9 +43,7 @@ def load_diffusion_model(
     ckpt = torch.load(ckpt_path, map_location=device)
     hparams = {**ckpt.get("hparams", {}), **overrides}
 
-    missing = [
-        k for k in ("base_channels", "num_timesteps") if k not in hparams
-    ]
+    missing = [k for k in ("base_channels", "num_timesteps") if k not in hparams]
     if missing:
         raise KeyError(
             f"Checkpoint {ckpt_path} has no {missing}; pass them as "
@@ -73,13 +71,11 @@ def load_diffusion_model(
 
 
 def make_ddim_timesteps(
-    num_ddim_steps: int,
-    num_diffusion_steps: int,
-    t_start: int = None
+    num_ddim_steps: int, num_diffusion_steps: int, t_start: int | None = None
 ) -> List[int]:
     """
-    Create a subsampled DDIM timestep schedule based on the training diffusion 
-    process. It Allows starting from an arbitrary timestep 
+    Create a subsampled DDIM timestep schedule based on the training diffusion
+    process. It Allows starting from an arbitrary timestep
     t_start <= num_diffusion_steps-1.
 
     Parameters
@@ -90,7 +86,7 @@ def make_ddim_timesteps(
     num_diffusion_steps : int
         Total number of diffusion steps used during training.
     t_start : int, optional
-        Starting timestep. If None, defaults to the final timestep 
+        Starting timestep. If None, defaults to the final timestep
         (num_diffusion_steps - 1).
 
     Returns
@@ -110,18 +106,23 @@ def make_ddim_timesteps(
 
     # Rounding (rather than truncating) float64 values spaced >= 1 apart
     # guarantees distinct timesteps.
-    timesteps = torch.linspace(
-        t_start,
-        0,
-        steps=num_ddim_steps,
-        dtype=torch.float64,
-    ).round().long()
+    timesteps = (
+        torch.linspace(
+            t_start,
+            0,
+            steps=num_ddim_steps,
+            dtype=torch.float64,
+        )
+        .round()
+        .long()
+    )
     return timesteps.tolist()
 
 
 # -----------------------------------------------------------------------------
 # DDIM Reverse step
 # -----------------------------------------------------------------------------
+
 
 def _alpha_bar(schedule: DiffusionSchedule, t: int) -> Tensor:
     """
@@ -173,9 +174,7 @@ def ddim_reverse_step(
     if not t_prev < t:
         raise ValueError(f"t_prev ({t_prev}) must be < t ({t})")
 
-    t_tensor = torch.full(
-        (x.size(0),), t, device=x.device, dtype=torch.long
-    )
+    t_tensor = torch.full((x.size(0),), t, device=x.device, dtype=torch.long)
     eps = model(x, t_tensor)
 
     alpha_bar_t = _alpha_bar(schedule, t)
@@ -194,8 +193,9 @@ def ddim_reverse_step(
         eps = (x - sqrt_ab_t * x0_hat) / sqrt_1mab_t
 
     # Deterministic DDIM update
-    x_prev = torch.sqrt(alpha_bar_prev) * x0_hat + \
-        torch.sqrt(1.0 - alpha_bar_prev) * eps
+    x_prev = (
+        torch.sqrt(alpha_bar_prev) * x0_hat + torch.sqrt(1.0 - alpha_bar_prev) * eps
+    )
 
     return x_prev, x0_hat, score
 
@@ -203,6 +203,7 @@ def ddim_reverse_step(
 # -----------------------------------------------------------------------------
 # Full reverse diffusion with subsampled timesteps
 # -----------------------------------------------------------------------------
+
 
 @torch.no_grad()
 def reverse_diffusion_ddim(
@@ -245,9 +246,7 @@ def reverse_diffusion_ddim(
 
     targets = list(timesteps[1:]) + [-1]
     for t, t_prev in zip(timesteps, targets):
-        x, _, score = ddim_reverse_step(
-            x, t, t_prev, model, schedule, clip_x0
-        )
+        x, _, score = ddim_reverse_step(x, t, t_prev, model, schedule, clip_x0)
         scores.append(score)
 
     return x, scores
