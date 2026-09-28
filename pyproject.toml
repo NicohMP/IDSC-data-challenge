@@ -1,9 +1,11 @@
 [project]
 name = "data-challenge"
 version = "0.1.0"
-description = "Add your description here"
+description = "Line detection in spectrograms with diffusion-model residuals"
 readme = "README.md"
-requires-python = ">=3.13"
+# Keep all contributors on the minor version recorded in .python-version.
+# This avoids platform-dependent dependency resolution between Python 3.13 and later.
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "matplotlib>=3.11.2",
     "numpy>=2.5.3",
