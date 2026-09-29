@@ -27,6 +27,7 @@ class DiffusionSchedule:
     device : torch.device
         Device on which tensors are allocated.
     """
+
     def __init__(
         self,
         timesteps: int = 1000,
@@ -46,9 +47,7 @@ class DiffusionSchedule:
             beta_start = beta_start * scale
             beta_end = min(beta_end * scale, 0.999)
 
-        self.betas = torch.linspace(
-            beta_start, beta_end, timesteps, device=device
-        )
+        self.betas = torch.linspace(beta_start, beta_end, timesteps, device=device)
 
         self.alphas = 1.0 - self.betas
         self.alpha_bar = torch.cumprod(self.alphas, dim=0)
@@ -60,7 +59,7 @@ def diffuse(
     x0: torch.Tensor,
     t: torch.Tensor,
     schedule: DiffusionSchedule,
-    noise: torch.Tensor = None
+    noise: torch.Tensor | None = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Apply forward diffusion to clean data x0.
@@ -91,12 +90,10 @@ def diffuse(
 
     xt = sqrt_ab * x0 + sqrt_1mab * noise
     return xt, noise
-    
+
 
 def ddpm_loss(
-    model: nn.Module,
-    x0: torch.Tensor,
-    schedule: DiffusionSchedule
+    model: nn.Module, x0: torch.Tensor, schedule: DiffusionSchedule
 ) -> torch.Tensor:
     """
     Compute the DDPM training loss.
@@ -122,9 +119,7 @@ def ddpm_loss(
     device = x0.device
 
     # sample random timesteps
-    t = torch.randint(
-        0, schedule.timesteps, (B,), device=device
-    )
+    t = torch.randint(0, schedule.timesteps, (B,), device=device)
 
     # forward diffusion
     xt, noise = diffuse(x0, t, schedule)
