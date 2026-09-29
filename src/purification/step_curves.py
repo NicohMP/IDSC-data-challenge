@@ -1,15 +1,8 @@
 import torch
-import numpy as np
-from typing import List, Literal, Type
+from typing import List
 
-from inference import (
-    load_diffusion_model,
-    ddim_reverse_step,
-    reverse_diffusion_ddim,
-    make_ddim_timesteps,
-)
-from diffusion import DiffusionSchedule, diffuse
-from network import UNetDiffusion
+from inference import make_ddim_timesteps
+from diffusion import DiffusionSchedule
 from collections.abc import Callable
 
 StepCurve = Callable[
@@ -25,13 +18,26 @@ def _check_steps_inputs(K: int, t_start: int, schedule: DiffusionSchedule):
 
 
 def quadratic_timesteps(
-    K: int, schedule: DiffusionSchedule, t_start: int, *, curve: float
+    K: int, t_start: int, schedule: DiffusionSchedule
 ) -> List[int]:
     _check_steps_inputs(K, t_start, schedule)
-    n = K - 1
-    slope = (t_start - curve * n**2) / n
-    steps = [round((curve * (x**2)) + slope * x) for x in range(K)]
-    return steps[::-1]
+    if K == 1:
+        return [t_start]
+
+    raw_steps = [
+        round(t_start * (1 - i / (K - 1)) ** 2)
+        for i in range(K)
+    ]
+
+    steps = [t_start]
+    for i, raw_step in enumerate(raw_steps[1:-1], start=1):
+        # Keep one distinct integer timestep for every remaining step.
+        lower = K - 1 - i
+        upper = steps[-1] - 1
+        steps.append(min(max(raw_step, lower), upper))
+
+    steps.append(0)
+    return steps
 
 
 def linear_timesteps(K: int, t_start: int, schedule: DiffusionSchedule) -> List[int]:
