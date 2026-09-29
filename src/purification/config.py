@@ -1,16 +1,15 @@
 from dataclasses import dataclass
-from diffusion import DiffusionSchedule
+
 
 from .step_curves import StepCurve
 
 
-@dataclass
+@dataclass(frozen=True)
 class PurificationConfig:
     """Paramètres d'un débruitage DDIM avec un calendrier donné."""
 
     t_start: int
     K: int
-    schedule: DiffusionSchedule
     step_curve: StepCurve
 
     @property

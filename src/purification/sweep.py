@@ -1,39 +1,52 @@
 from network import UNetDiffusion
 import torch
 import numpy as np
+from dataclasses import dataclass
+from collections.abc import Iterator
+
+
 from purification.config import PurificationConfig
-from .scoring import ScoreMethod, score_config
+from purification.purifier import Purifier
+from diffusion import DiffusionSchedule
 from utils import normalize_patch
 
 
-class EvaluationSweep:
+@dataclass
+class PurificationBatch:
+    patch_names: list[str]
+    config: PurificationConfig
+    seed: int
+    x0: torch.Tensor
+    x0_hat: torch.Tensor
+
+
+class PurificationSweep:
     def __init__(
         self,
         model: UNetDiffusion,
+        schedule: DiffusionSchedule,
         configs: list[PurificationConfig],
         patches: dict[str, np.ndarray],
-        annotations: dict[str, dict[str, bool]],
-        score_method: ScoreMethod,
         device: torch.device,
         batch_size: int,
         seeds: list[int] | None = None,
     ) -> None:
 
         self.model = model
+        self.schedule = schedule
         self.configs = configs
         self.patches = patches
-        self.annotations = annotations
-        self.score_method = score_method
         self.device = device
         self.batch_size = batch_size
         self.seeds = [0] if seeds is None else seeds
 
-    def run(self) -> list[dict[str, object]]:
+    def run(self) -> Iterator[PurificationBatch]:
         """Évalue chaque (patch, configuration, seed)."""
-        results: list[dict[str, object]] = []
-
+        # Init common purifier
+        purifier = Purifier(self.model, self.schedule)
+        # Sort patches
         patch_names = sorted(self.patches)
-
+        # Concatenate all patches into a single tensor
         x0_all = torch.stack(
             [
                 normalize_patch(
@@ -65,34 +78,13 @@ class EvaluationSweep:
                     x0_batch = x0_all[start:end]
                     eps_batch = eps_all[start:end]
 
-                    scores_batch = score_config(
-                        model=self.model,
-                        config=config,
-                        x0=x0_batch,
-                        eps=eps_batch,
-                        score_method=self.score_method,
+                    x0_hat = purifier.reconstruct(
+                        x0=x0_batch, config=config, eps=eps_batch
                     )
-
-                    scores_batch = scores_batch.detach().cpu().tolist()
-
-                    for patch_name, score in zip(names_batch, scores_batch):
-                        annotation = self.annotations[patch_name]
-
-                        results.append(
-                            {
-                                "patch_name": patch_name,
-                                "seed": seed,
-                                "config_name": config.name,
-                                "t_start": config.t_start,
-                                "K": config.K,
-                                "step_curve": config.step_curve_name,
-                                "score": score,
-                                "horizontal": bool(annotation["horizontal"]),
-                                "other": bool(annotation["other"]),
-                                "any_line": bool(
-                                    annotation["horizontal"] or annotation["other"]
-                                ),
-                            }
-                        )
-
-        return results
+                    yield PurificationBatch(
+                        patch_names=names_batch,
+                        config=config,
+                        seed=seed,
+                        x0=x0_batch,
+                        x0_hat=x0_hat,
+                    )
