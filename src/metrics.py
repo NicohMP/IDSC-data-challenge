@@ -26,12 +26,16 @@ def average_precision(y: np.ndarray, s: np.ndarray) -> float:
 
 def binary_metrics(y: np.ndarray, pred: np.ndarray) -> dict:
     """
-    Precision, recall, F1 and error counts of boolean predictions.
+    Accuracy, precision, recall, F1 and error counts of boolean predictions.
     """
+    accuracy = float((y == pred).mean())
     tp = int((y & pred).sum())
     fp = int((~y & pred).sum())
     fn = int((y & ~pred).sum())
     precision = tp / (tp + fp) if tp + fp else 0.0
     recall = tp / (tp + fn) if tp + fn else 0.0
     f1 = 2 * precision * recall / (precision + recall) if tp else 0.0
-    return {"precision": precision, "recall": recall, "f1": f1, "fp": fp, "fn": fn}
+    return {
+        "accuracy": accuracy, "precision": precision, "recall": recall,
+        "f1": f1, "fp": fp, "fn": fn,
+    }

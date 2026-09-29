@@ -59,7 +59,7 @@ if __name__ == "__main__":
     )
     print(
         f"{'detector':8s} {'label':11s} {'AUC':>5s} {'AP':>5s} | "
-        f"{'prec':>5s} {'rec':>5s} {'F1':>5s} {'FP':>4s} {'FN':>4s}"
+        f"{'acc':>5s} {'prec':>5s} {'rec':>5s} {'F1':>5s} {'FP':>4s} {'FN':>4s}"
     )
 
     for name in DETECTORS:
@@ -73,10 +73,21 @@ if __name__ == "__main__":
             f1s.append(m["f1"])
             print(
                 f"{name:8s} {lab:11s} {roc_auc(y, s):5.3f} {average_precision(y, s):5.3f} | "
-                f"{m['precision']:5.2f} {m['recall']:5.2f} {m['f1']:5.2f} "
-                f"{m['fp']:4d} {m['fn']:4d}"
+                f"{m['accuracy']:5.3f} {m['precision']:5.2f} {m['recall']:5.2f} "
+                f"{m['f1']:5.2f} {m['fp']:4d} {m['fn']:4d}"
             )
-        print(f"{name:8s} {'macro-F1':11s} {'':11s} | {'':17s}{np.mean(f1s):5.2f}")
+        exact = ((pred == np.stack([Y[l] for l in LABELS], axis=1)).all(axis=1)).mean()
+        print(
+            f"{name:8s} {'macro-F1':11s} {'':11s} | {'':6s}{'':17s}{np.mean(f1s):5.2f}"
+            f"   both labels correct: {exact:.3f}"
+        )
+
+    baseline = {lab: 1 - Y[lab].mean() for lab in LABELS}
+    baseline_exact = 1 - (Y["horizontal"] | Y["other"]).mean()
+    print(
+        f"baseline 'never a line': accuracy horizontal {baseline['horizontal']:.3f}, "
+        f"other {baseline['other']:.3f}, both correct {baseline_exact:.3f}"
+    )
 
     print("\n=== AUC vs angular tolerance H_TOL (columns) ===")
     print(f"{'detector':8s} {'label':11s} " + " ".join(f"{t:5.0f}" for t in TOL_SWEEP))
