@@ -17,7 +17,7 @@ AnomalyMapper = Callable[
 
 def compute_residual_map(x0: torch.Tensor, x0_hat: torch.Tensor, metric: str = "pdf_relative") -> torch.Tensor:
     """
-    Calcule la carte d'anomalie 2D (B, 1, H, W) selon la métrique choisie.
+    Compute the 2D anomaly map (B, 1, H, W) according to the chosen metric
     """
     diff = x0 - x0_hat
     abs_diff = torch.abs(diff)
@@ -26,22 +26,22 @@ def compute_residual_map(x0: torch.Tensor, x0_hat: torch.Tensor, metric: str = "
         # Metric from the paper: "Anomaly Detection with Diffusion Models"
         return abs_diff / (1.0 + torch.abs(x0_hat))
     
+    elif metric == "absolute":
+            return abs_diff
+    
     elif metric == "squared":
         return diff.pow(2)
     
-    elif metric == "absolute":
-        return abs_diff
-    
     elif metric == "signed_positive":
-        # Keep only anomaly pixels that are brighter than the background
-        # Ne garde que les pixels d'anomalie plus lumineux que le fond
         return torch.clamp(diff, min=0.0)
     
     elif metric == "z_score_local":
-        # Pondération de l'erreur par la variance locale (fenêtre 3x3)
-        std_local = F.avg_pool2d(x0_hat.pow(2), kernel_size=3, stride=1, padding=1) - \
-                    F.avg_pool2d(x0_hat, kernel_size=3, stride=1, padding=1).pow(2)
-        return abs_diff / (torch.sqrt(torch.abs(std_local)) + 1e-5)
+        # Compute local positive mean to ponderate the residuals
+        diff = x0 - x0_hat
+        pos_diff = torch.clamp(diff, min=0.0)
+        local_density = F.avg_pool2d(pos_diff, kernel_size=3, stride=1, padding=1)
+        
+        return pos_diff * local_density
     
     else:
         raise ValueError(f"residual metric unknown : {metric}")
