@@ -10,16 +10,46 @@ with batched PyTorch convolutions and therefore stays on the input device.
 """
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 ANGLES = np.arange(0.0, 180.0, 5.0)
 
 # Batch anomaly maps (B, 1, H, W) -> angle responses (B, N_angles).
 Filter = Callable[[torch.Tensor], torch.Tensor]
+
+
+@dataclass(frozen=True)
+class AngleMasks:
+    """Disjoint angle masks selecting horizontal and non-vertical lines."""
+
+    horizontal_mask: torch.Tensor  # bool, (N_angles,)
+    other_mask: torch.Tensor  # bool, (N_angles,)
+
+
+def make_angle_masks(
+    angles: np.ndarray = ANGLES,
+    horizontal_tolerance: float = 10.0,
+    vertical_tolerance: float = 10.0,
+) -> AngleMasks:
+    """Build masks for horizontal and oblique anomaly responses."""
+
+    angles_tensor = torch.as_tensor(angles, dtype=torch.float32)
+    if torch.any((angles_tensor < 0) | (angles_tensor >= 180)):
+        raise ValueError("angles must lie in [0, 180)")
+
+    horizontal_distance = torch.minimum(angles_tensor, 180 - angles_tensor)
+    horizontal_mask = horizontal_distance <= horizontal_tolerance
+    vertical_mask = torch.abs(angles_tensor - 90) <= vertical_tolerance
+    other_mask = ~(horizontal_mask | vertical_mask)
+
+    return AngleMasks(
+        horizontal_mask=horizontal_mask,
+        other_mask=other_mask,
+    )
 
 
 def _validate_maps(maps: torch.Tensor) -> None:
@@ -28,8 +58,7 @@ def _validate_maps(maps: torch.Tensor) -> None:
         raise TypeError("maps must be a torch.Tensor")
     if maps.ndim != 4 or maps.shape[1] != 1:
         raise ValueError(
-            "maps must have shape (B, 1, H, W), "
-            f"got {tuple(maps.shape)}"
+            "maps must have shape (B, 1, H, W), " f"got {tuple(maps.shape)}"
         )
     if not maps.is_floating_point():
         raise TypeError("maps must use a floating-point dtype")
@@ -94,9 +123,7 @@ def hough_profile(
     if not 0.0 <= quantile <= 1.0:
         raise ValueError("quantile must be between 0 and 1")
 
-    binary_map = (
-        anomaly_map >= np.quantile(anomaly_map, quantile)
-    ).astype(np.float64)
+    binary_map = (anomaly_map >= np.quantile(anomaly_map, quantile)).astype(np.float64)
     profile = []
     for theta in angles:
         votes, counts = _accumulate(binary_map, theta, min_len)
@@ -124,10 +151,7 @@ def gabor_kernel(
     along = columns * np.cos(theta) + rows * np.sin(theta)
     across = -columns * np.sin(theta) + rows * np.cos(theta)
     kernel = np.exp(
-        -(
-            along**2 / (2 * sigma_along**2)
-            + across**2 / (2 * sigma_across**2)
-        )
+        -(along**2 / (2 * sigma_along**2) + across**2 / (2 * sigma_across**2))
     )
     kernel *= np.cos(2 * np.pi * across / wavelength)
     kernel -= kernel.mean()
