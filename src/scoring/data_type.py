@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from dataclasses import dataclass
 from collections.abc import Callable
@@ -15,8 +16,8 @@ class AnomalyScores:
 
 @dataclass
 class AnomalyDecisions:
-    horizontal: torch.Tensor  # bool, (B,)
-    other: torch.Tensor  # bool, (B,)
+    horizontal: np.ndarray  # bool, (B,)
+    other: np.ndarray  # bool, (B,)
 
 
 @dataclass
