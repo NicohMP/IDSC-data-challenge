@@ -26,7 +26,10 @@ class DecisionHead:
 
     def fit(self, responses: torch.Tensor) -> "DecisionHead":
         """Fit the PyThresh method on calibration responses."""
-        scores = self.score(responses)
+        return self.fit_scores(self.score(responses))
+
+    def fit_scores(self, scores: torch.Tensor) -> "DecisionHead":
+        """Fit the PyThresh method on precomputed calibration scores."""
         self.thresholder.fit(scores.detach().cpu().numpy())
         return self
 
@@ -34,9 +37,9 @@ class DecisionHead:
         """Return one binary decision per patch.
         Returns a numpy array on cpu to match against annotations
         """
+        return self.predict_scores(self.score(responses))
 
-        scores = self.score(responses)
-
+    def predict_scores(self, scores: torch.Tensor) -> np.ndarray:
+        """Threshold precomputed scores into one binary decision per patch."""
         labels = self.thresholder.predict(scores.detach().cpu().numpy())
-
         return np.asarray(labels, dtype=bool)

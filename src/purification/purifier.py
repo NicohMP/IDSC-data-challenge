@@ -1,6 +1,6 @@
 import torch
 from network import UNetDiffusion
-from inference import DiffusionSchedule, reverse_diffusion_ddim
+from inference import reverse_diffusion_ddim
 from diffusion import DiffusionSchedule, diffuse
 from .config import PurificationConfig
 

@@ -17,26 +17,19 @@ class PipelineOutput:
 @dataclass(frozen=True)
 class PipelineConfig:
     purification: PurificationConfig
-    map: AnomalyMapper
+    mapper: AnomalyMapper
     filter: Filter
+    horizontal_decision: DecisionHead
+    other_decision: DecisionHead
 
 
 class DetectionPipeline:
-    def __init__(
-        self,
-        purifier: Purifier,
-        mapper: AnomalyMapper,
-        filter: Filter,
-        horizontal_decision: DecisionHead,
-        other_decision: DecisionHead,
-    ) -> None:
+    """Run configurable anomaly-detection stages with a shared purifier."""
 
+    def __init__(self, purifier: Purifier) -> None:
         self.purifier = purifier
-        self.mapper = mapper
-        self.filter = filter
-        self.horizontal_decision = horizontal_decision
-        self.other_decision = other_decision
 
+    @torch.inference_mode()
     def score_batch(
         self,
         x0: torch.Tensor,  # (B, 1, H, W), normalized
@@ -47,34 +40,31 @@ class DetectionPipeline:
         x0_hat: torch.Tensor = self.purifier.reconstruct(
             x0=x0, config=pipe_config.purification, eps=eps
         )
-        maps = self.mapper(x0, x0_hat)
-        responses = self.filter(maps)
-        other_scores = self.other_decision.score(responses)
-        horizontal_scores = self.horizontal_decision.score(responses)
+        maps = pipe_config.mapper(x0, x0_hat)
+        responses = pipe_config.filter(maps)
+        other_scores = pipe_config.other_decision.score(responses)
+        horizontal_scores = pipe_config.horizontal_decision.score(responses)
         return AnomalyScores(horizontal=horizontal_scores, other=other_scores)
 
+    @torch.inference_mode()
     def predict_batch(
         self,
         x0: torch.Tensor,
         eps: torch.Tensor,
         pipe_config: PipelineConfig,
     ) -> PipelineOutput:
-        x0_hat: torch.Tensor = self.purifier.reconstruct(
-            x0=x0, config=pipe_config.purification, eps=eps
+        """Score a batch and apply decision heads fitted on calibration data."""
+        scores = self.score_batch(x0=x0, eps=eps, pipe_config=pipe_config)
+
+        horizontal_preds = pipe_config.horizontal_decision.predict_scores(
+            scores.horizontal
         )
-        maps = self.mapper(x0, x0_hat)
-        responses = self.filter(maps)
-
-        self.other_decision.fit(responses)
-        other_preds = self.other_decision.predict(responses)
-
-        self.horizontal_decision.fit(responses)
-        horizontal_preds = self.horizontal_decision.predict(responses)
+        other_preds = pipe_config.other_decision.predict_scores(scores.other)
 
         return PipelineOutput(
-            AnomalyScores(
-                self.horizontal_decision.score(responses),
-                self.other_decision.score(responses),
+            scores=scores,
+            decisions=AnomalyDecisions(
+                horizontal=horizontal_preds,
+                other=other_preds,
             ),
-            AnomalyDecisions(horizontal_preds, other_preds),
         )
