@@ -5,7 +5,7 @@ import torch
 from .data_type import DecisionConfig
 
 
-class BinaryDecisionHead:
+class DecisionHead:
     """Aggregate filter responses and threshold the resulting scores."""
 
     def __init__(
@@ -24,19 +24,19 @@ class BinaryDecisionHead:
 
         return scores
 
-    def fit(self, responses: torch.Tensor) -> "BinaryDecisionHead":
+    def fit(self, responses: torch.Tensor) -> "DecisionHead":
         """Fit the PyThresh method on calibration responses."""
         scores = self.score(responses)
         self.thresholder.fit(scores.detach().cpu().numpy())
         return self
 
-    def predict(self, responses: torch.Tensor) -> torch.Tensor:
-        """Return one binary decision per patch."""
+    def predict(self, responses: torch.Tensor) -> np.ndarray:
+        """Return one binary decision per patch.
+        Returns a numpy array on cpu to match against annotations
+        """
+
         scores = self.score(responses)
 
         labels = self.thresholder.predict(scores.detach().cpu().numpy())
 
-        return torch.as_tensor(
-            np.asarray(labels, dtype=bool),
-            device=responses.device,
-        )
+        return np.asarray(labels, dtype=bool)
